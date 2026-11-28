@@ -289,8 +289,11 @@ Go service owning Human HTTP/SSE, Agent callbacks, and active product state.
   at 852 skips it and an older one must be recreated.
   Target migration filenames, versions and SQL are immutable; add a
   forward migration above the target's latest version instead of rewriting or
-  deleting an existing file. Renumber only unpublished branch migrations and
-  update their test fixtures and release references.
+  deleting an existing file. The one exception is a migration whose published
+  body failed on every database, so no database recorded its version;
+  `corrected_migrations` in the checker pins the corrected bytes. Renumber only
+  unpublished branch migrations and update their test fixtures and release
+  references.
   Pull request validation checks changed SQL against the current remote target
   tip, not the older diff base. A missing upstream migration requires syncing
   the target; Git conflict resolution alone does not prove version uniqueness.

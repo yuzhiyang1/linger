@@ -114,6 +114,23 @@ published_files = tree_migrations(published_ref)
 # version skips it. Those published files may be deleted only together with
 # the baseline; rewriting one, or deleting any later published SQL, still
 # fails closed.
+# A published migration whose original body failed inside its transaction on
+# every database left no database at its version, so each database applies a
+# corrected body instead. Each entry pins the corrected blob: a candidate may
+# carry exactly those bytes, or keep the file as it was at merge-base and take
+# the correction from the merge.
+corrected_migrations = {
+    # The original referenced public.tenants, which no migration creates.
+    f"{migration_directory}/00898_voice_settings.sql": "ff49031d69b5f55ea9cb21a6fcd4d626ad9b2a26",
+}
+
+
+def corrected(filename, digest):
+    if filename not in corrected_migrations:
+        return False
+    return digest in (corrected_migrations[filename], published_files.get(filename))
+
+
 baseline_file = f"{migration_directory}/00852_baseline.sql"
 retired_maximum = 852
 for filename, digest in published_files.items():
@@ -121,10 +138,10 @@ for filename, digest in published_files.items():
         if baseline_file in candidate_files and next(iter(versions([filename]))) <= retired_maximum:
             continue
         raise SystemExit(f"missing published migration: {filename}; restore the file as it exists at merge-base {published_ref}")
-    if candidate_files[filename] != digest:
+    if candidate_files[filename] != digest and not corrected(filename, candidate_files[filename]):
         raise SystemExit(f"modified target migration: {filename}; restore it and use a new forward migration")
 for filename, digest in target_files.items():
-    if filename in candidate_files and candidate_files[filename] != digest:
+    if filename in candidate_files and candidate_files[filename] != digest and not corrected(filename, candidate_files[filename]):
         raise SystemExit(f"modified target migration: {filename}; restore it and use a new forward migration")
 
 target_maximum = max(target_versions)

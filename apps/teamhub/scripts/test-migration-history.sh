@@ -298,4 +298,25 @@ git -C "$fixture_repository" branch -f target HEAD
 rm "$fixture_repository/apps/teamhub/migrations/00853_after.sql"
 expect_rejected 'missing published migration: apps/teamhub/migrations/00853_after.sql'
 
+# A corrected migration passes only with its pinned corrected bytes, or
+# unchanged since merge-base once the target carries the correction.
+corrected_migration=apps/teamhub/migrations/00898_voice_settings.sql
+new_repository corrected_migration
+printf '%s\n' '-- +goose Up' 'SELECT 898;' >"$fixture_repository/$corrected_migration"
+git -C "$fixture_repository" add .
+git -C "$fixture_repository" commit -qm published-898
+git -C "$fixture_repository" branch -f target HEAD
+printf 'SELECT 2;\n' >>"$fixture_repository/$corrected_migration"
+expect_rejected 'modified target migration'
+cp "$script_dir/../migrations/00898_voice_settings.sql" "$fixture_repository/$corrected_migration"
+(cd "$fixture_repository" && bash "$checker" target) >/dev/null
+git -C "$fixture_repository" checkout -q -- "$corrected_migration"
+git -C "$fixture_repository" checkout -q target
+git -C "$fixture_repository" checkout -q -b stale
+git -C "$fixture_repository" checkout -q target
+cp "$script_dir/../migrations/00898_voice_settings.sql" "$fixture_repository/$corrected_migration"
+git -C "$fixture_repository" commit -qam corrected-898
+git -C "$fixture_repository" checkout -q stale
+(cd "$fixture_repository" && bash "$checker" target stale) >/dev/null
+
 printf 'PASS: migration history preserves target SQL and rejects stale or colliding versions\n'
